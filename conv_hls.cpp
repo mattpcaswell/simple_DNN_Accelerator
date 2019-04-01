@@ -1,5 +1,6 @@
 #include "conv_hls.h"
 #include <math.h>
+#include <assert.h>
 using namespace std;
 
 point_t map_to_input(point_t out, data_t z, int stride) {
@@ -49,7 +50,11 @@ void conv(
 
 	int needed_in_sx = out_sx * stride + filter_dim_size - 1;
 	int needed_in_sy = out_sy * stride + filter_dim_size - 1;
-	int pad = 1;//put in function definition later
+
+	// Calculate zero padding. Evenly distribute with the 1 extra going on the right/bottom. Equivalent to the "same" padding in Keras
+	int padx = (needed_in_sx - in_sx) / 2;
+	int pady = (needed_in_sy - in_sy) / 2;
+
 	int current_location_x, current_location_y;
 	for (int filter = 0; filter < num_filters; filter++) { 		// filter
 		for (int x = 0; x < out_sx; x++) {     					// output x
@@ -62,15 +67,15 @@ void conv(
 						for (int z = 0; z < in_sz; z++) {     	// filter z
 							data_t f = filters[calc_filter_index(filter, i, j, z, filter_dim_size)];
 							data_t v = 0;
-							current_location_x=mapped.x + i - pad;
-							current_location_y=mapped.y + j - pad;
+							current_location_x=mapped.x + i - padx;
+							current_location_y=mapped.y + j - pady;
 							// Keep v at 0 if the location is outside of the input AKA zero padding
 							if (current_location_x >= 0 && current_location_x < in_sx  && current_location_y >= 0 && current_location_y < in_sy)
 								v = in[calc_index(current_location_x, current_location_y, z, in_sx, in_sy)];
 
 							sum += f * v;
 						}
-				//this line is the problem, shift >> does not work right
+				// Do we need to do this????
 				int result=sum / pow(2,8);
 				result=result + bias[filter];
 				out[calc_index(x, y, filter, out_sx, out_sy)] = result;
