@@ -1,9 +1,8 @@
 #include "conv_hls.h"
-#include <math.h>
 #include <assert.h>
 using namespace std;
 
-point_t map_to_input(point_t out, data_t z, int stride) {
+point_t map_to_input(point_t out, int z, int stride) {
 	out.x *= stride;
 	out.y *= stride;
 	out.z = z;
@@ -35,18 +34,32 @@ int calc_index(int x, int y, int z, int sx, int sy) {
 }
 
 void conv(
-		data_t filters[MAX_FILTERS_SIZE],
+		weight_t filters[MAX_FILTERS_SIZE],
 		int num_filters,
 		int filter_dim_size,
-		data_t in[MAX_IN_SIZE],
+		activation_t in[MAX_IN_SIZE],
 		int in_sx,
 		int in_sy,
 		int in_sz,
-		data_t out[MAX_OUT_SIZE],
+		activation_t out[MAX_OUT_SIZE],
 		int out_sx,
 		int out_sy,
 		int stride,
-		data_t bias[MAX_BIAS_SIZE]) {
+		activation_t bias[MAX_BIAS_SIZE]) {
+#pragma HLS INTERFACE bram port=filters
+#pragma HLS INTERFACE bram port=in
+#pragma HLS INTERFACE bram port=out
+#pragma HLS INTERFACE bram port=bias
+
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=return
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=num_filters
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=filter_dim_size
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=in_sx
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=in_sy
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=in_sz
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=out_sx
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=out_sy
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=stride
 
 	int needed_in_sx = out_sx * stride + filter_dim_size - 1;
 	int needed_in_sy = out_sy * stride + filter_dim_size - 1;
@@ -61,12 +74,12 @@ void conv(
 			for (int y = 0; y < out_sy; y++) { 					// output y
 				point_t input = { x, y, 0};
 				point_t mapped = map_to_input(input, 0, stride);
-				data_t sum = 0;
+				accumulation_t sum = 0;
 				for (int i = 0; i < filter_dim_size; i++)     	// filter x
 					for (int j = 0; j < filter_dim_size; j++)	// filter y
 						for (int z = 0; z < in_sz; z++) {     	// filter z
-							data_t f = filters[calc_filter_index(filter, i, j, z, filter_dim_size)];
-							data_t v = 0;
+							weight_t f = filters[calc_filter_index(filter, i, j, z, filter_dim_size)];
+							activation_t v = 0;
 							current_location_x=mapped.x + i - padx;
 							current_location_y=mapped.y + j - pady;
 							// Keep v at 0 if the location is outside of the input AKA zero padding
@@ -76,7 +89,7 @@ void conv(
 							sum += f * v;
 						}
 				// Do we need to do this????
-				int result=sum / pow(2,8);
+				accumulation_t result = sum / accumulation_t(256); // 2^8 = 256
 				result=result + bias[filter];
 				out[calc_index(x, y, filter, out_sx, out_sy)] = result;
 			}
