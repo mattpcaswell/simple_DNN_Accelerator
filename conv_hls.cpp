@@ -33,19 +33,10 @@ int calc_index(int x, int y, int z, int sx, int sy) {
 	return i;
 }
 
-void conv(
-		weight_t filters[MAX_FILTERS_SIZE],
-		int num_filters,
-		int filter_dim_size,
-		activation_t in[MAX_IN_SIZE],
-		int in_sx,
-		int in_sy,
-		int in_sz,
-		activation_t out[MAX_OUT_SIZE],
-		int out_sx,
-		int out_sy,
-		int stride,
-		activation_t bias[MAX_BIAS_SIZE]) {
+void conv(weight_t filters[MAX_FILTERS_SIZE], int num_filters,
+		int filter_dim_size, activation_t in[MAX_IN_SIZE], int in_sx, int in_sy,
+		int in_sz, activation_t out[MAX_OUT_SIZE], int out_sx, int out_sy,
+		int stride, activation_t bias[MAX_BIAS_SIZE]) {
 #pragma HLS INTERFACE bram port=filters
 #pragma HLS INTERFACE bram port=in
 #pragma HLS INTERFACE bram port=out
@@ -72,25 +63,37 @@ void conv(
 	for (int filter = 0; filter < num_filters; filter++) { 		// filter
 		for (int x = 0; x < out_sx; x++) {     					// output x
 			for (int y = 0; y < out_sy; y++) { 					// output y
-				point_t input = { x, y, 0};
+				point_t input = { x, y, 0 };
 				point_t mapped = map_to_input(input, 0, stride);
 				accumulation_t sum = 0;
-				for (int i = 0; i < filter_dim_size; i++)     	// filter x
-					for (int j = 0; j < filter_dim_size; j++)	// filter y
-						for (int z = 0; z < in_sz; z++) {     	// filter z
-							weight_t f = filters[calc_filter_index(filter, i, j, z, filter_dim_size)];
-							activation_t v = 0;
-							current_location_x=mapped.x + i - padx;
-							current_location_y=mapped.y + j - pady;
-							// Keep v at 0 if the location is outside of the input AKA zero padding
-							if (current_location_x >= 0 && current_location_x < in_sx  && current_location_y >= 0 && current_location_y < in_sy)
-								v = in[calc_index(current_location_x, current_location_y, z, in_sx, in_sy)];
+				for (int i = 0; i < MAX_FILTER_DIM; i++)     	// filter x
+#pragma HLS PIPELINE
+					if (i < filter_dim_size) {
+						for (int j = 0; j < MAX_FILTER_DIM; j++)	// filter y
+#pragma HLS UNROLL
+							if (j < filter_dim_size) {
+								for (int z = 0; z < MAX_INPUT_SZ; z++) { // filter z
+#pragma HLS UNROLL
+									if (z < in_sz) {
+										weight_t f = filters[calc_filter_index(filter, i, j, z, filter_dim_size)];
+										activation_t v = 0;
+										
+										current_location_x = mapped.x + i - padx;
+										current_location_y = mapped.y + j - pady;
+										// Keep v at 0 if the location is outside of the input AKA zero padding
+										if (current_location_x >= 0
+												&& current_location_x < in_sx
+												&& current_location_y >= 0
+												&& current_location_y < in_sy)
+											v = in[calc_index(current_location_x, current_location_y, z, in_sx, in_sy)];
 
-							sum += f * v;
-						}
-				// Do we need to do this????
+										sum += f * v;
+									}
+								}
+							}
+					}
 				accumulation_t result = sum / accumulation_t(256); // 2^8 = 256
-				result=result + bias[filter];
+				result = result + bias[filter];
 				out[calc_index(x, y, filter, out_sx, out_sy)] = result;
 			}
 		}
