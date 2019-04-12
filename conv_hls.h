@@ -14,10 +14,22 @@ typedef ap_fixed<32,32,AP_TRN,AP_SAT> activation_t;
 typedef ap_fixed<32,32,AP_TRN,AP_SAT> weight_t;
 typedef ap_fixed<32,32,AP_TRN,AP_SAT> accumulation_t;
 
-#define MAX_FILTERS_SIZE 864
-#define MAX_IN_SIZE 3072
-#define MAX_OUT_SIZE 32768
-#define MAX_BIAS_SIZE 32
+
+#define MAX_NUM_FILTERS 3
+#define MAX_FILTER_DIM  3
+
+#define MAX_INPUT_SX    16
+#define MAX_INPUT_SY    16
+#define MAX_INPUT_SZ    3
+
+#define MAX_OUTPUT_SX   16
+#define MAX_OUTPUT_SY   16
+
+#define MAX_FILTER_SIZE MAX_FILTER_DIM * MAX_FILTER_DIM * MAX_INPUT_SZ
+#define MAX_FILTERS_SIZE MAX_NUM_FILTERS * MAX_FILTER_SIZE
+#define MAX_IN_SIZE MAX_INPUT_SX * MAX_INPUT_SY * MAX_INPUT_SZ
+#define MAX_OUT_SIZE MAX_OUTPUT_SX * MAX_OUTPUT_SY * MAX_INPUT_SZ
+#define MAX_BIAS_SIZE MAX_NUM_FILTERS
 
 void conv(
 		weight_t filters[MAX_FILTERS_SIZE],
