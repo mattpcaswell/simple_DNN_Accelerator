@@ -2,6 +2,7 @@
 #include <assert.h>
 using namespace std;
 
+/*
 int calc_filter_index(int filter_num, int x, int y, int z, int filter_size, int filter_sz) {
 #pragma HLS INLINE
 	assert(x >= 0 && x < filter_size);
@@ -27,12 +28,21 @@ int calc_index(int x, int y, int z, int sx, int sy) {
 
 	return i;
 }
+*/
 
-void conv(weight_t filters[MAX_FILTERS_SIZE], int num_filters,
-		int filter_dim_size, activation_t in[MAX_IN_SIZE], int in_sx, int in_sy,
-		int in_sz, activation_t out[MAX_OUT_SIZE], int out_sx, int out_sy,
+void conv(weight_t filters[MAX_NUM_FILTERS][MAX_FILTER_DIM][MAX_FILTER_DIM][MAX_INPUT_SZ], int num_filters,
+		int filter_dim_size, activation_t in[MAX_INPUT_SX][MAX_INPUT_SY][MAX_INPUT_SZ], int in_sx, int in_sy,
+		int in_sz, activation_t out[MAX_OUTPUT_SX][MAX_OUTPUT_SY][MAX_NUM_FILTERS], int out_sx, int out_sy,
 		int stride, activation_t bias[MAX_BIAS_SIZE]) {
-#pragma HLS ARRAY_PARTITION variable=filters cyclic factor=4 dim=1
+
+#pragma HLS RESOURCE variable=filters core=RAM_1P_BRAM
+#pragma HLS RESOURCE variable=in core=RAM_1P_BRAM
+#pragma HLS RESOURCE variable=out core=RAM_1P_BRAM
+#pragma HLS RESOURCE variable=bias core=RAM_1P_BRAM
+
+#pragma HLS ARRAY_PARTITION variable=in complete dim=3
+#pragma HLS ARRAY_PARTITION variable=out complete dim=3
+#pragma HLS ARRAY_PARTITION variable=filters complete dim=4
 #pragma HLS INTERFACE bram port=filters
 #pragma HLS INTERFACE bram port=in
 #pragma HLS INTERFACE bram port=out
@@ -60,7 +70,7 @@ void conv(weight_t filters[MAX_FILTERS_SIZE], int num_filters,
 	for (int x = 0; x < out_sx; x++) {
 		for (int y = 0; y < out_sy; y++) {
 			for (int z = 0; z < num_filters; z++) {
-				out[calc_index(x, y, z, out_sx, out_sy)] = bias[z];
+				out[x][y][z] = bias[z];
 			}
 		}
 	}
@@ -98,15 +108,14 @@ void conv(weight_t filters[MAX_FILTERS_SIZE], int num_filters,
 															&& current_location_x < in_sx
 															&& current_location_y >= 0
 															&& current_location_y < in_sy) {
-														weight_t f = filters[calc_filter_index(z, i, j, k, filter_dim_size, in_sz)];
-														activation_t v = in[calc_index(current_location_x, current_location_y, k, in_sx, in_sy)];
+														weight_t f = filters[z][i][j][k];
+														activation_t v = in[current_location_x][current_location_y][k];
 														sum += v * f;
 													}
 												}
 											}
 
-
-											out[calc_index(x, y, z, out_sx, out_sy)] += sum / accumulation_t(256);
+											out[x][y][z] += sum / accumulation_t(256);
 										}
 									}
 								}
