@@ -6,6 +6,7 @@
 #include "xconv.h"
 #include "xil_io.h"
 
+// defines / undefines needed to have ap_fixed compile
 #undef str
 #define HALF_ENABLE_CPP11_CMATH 0
 #include "ap_fixed.h"
@@ -31,15 +32,8 @@ typedef ap_fixed<16,8,AP_TRN,AP_SAT> weight_t;
 
 #define STRIDE 1
 
-// HLS HW instances
+// HLS HW instance
 XConv hlsConv;
-
-// Variables used by interrupt routine
-volatile static int convDone = 0;
-volatile static int biasOpDone = 0;
-volatile static int inputOpDone = 0;
-volatile static int outputOpDone = 0;
-volatile static int filterOpDone = 0;
 
 int hls_conv_init() {
 	XConv_Config *cfgPtr;
@@ -82,36 +76,6 @@ void fill_input(activation_t *array) {
 	XConv_Write_in_1_V_Bytes(&hlsConv, 0, (char *) &(array[slice_size]), bytes);
 	XConv_Write_in_2_V_Bytes(&hlsConv, 0, (char *) &(array[2 * slice_size]), bytes);
 
-//	if (XInput_bram_op_IsReady(&hlsInputOp)) {
-//		//print("input bram is ready, and staring to be filled with data\n");
-//	} else {
-//		print("input bram op is not ready. Exiting\n");
-//		exit(-1);
-//	}
-//
-//	for (int i = 0; i < INPUT_SIZE; i++) {
-//		// read byte from memory
-//		int temp = array[i];
-//		//xil_printf("read word 0x%x\n", temp);
-//
-//		u32 y = i % INPUT_SY;
-//		u32 x = ((i - y) / INPUT_SY) % INPUT_SX;
-//		u32 z = (i - y - x*INPUT_SY) / (INPUT_SX * INPUT_SY);
-//		assert(z < INPUT_SZ);
-//
-//		// write byte to hls input op
-//		XInput_bram_op_Set_write_flag(&hlsInputOp, 1);
-//		XInput_bram_op_Set_value_V_i(&hlsInputOp, temp);
-//		XInput_bram_op_Set_x(&hlsInputOp, x);
-//		XInput_bram_op_Set_y(&hlsInputOp, y);
-//		XInput_bram_op_Set_z(&hlsInputOp, z);
-//		XInput_bram_op_Start(&hlsInputOp);
-//
-//		while (!XInput_bram_op_IsReady(&hlsInputOp))
-//			;
-//		//printf("write  #%d to input bram with value 0x%x\n", i, temp);
-//	}
-
 	print("Finished writing to input bram!\n");
 }
 
@@ -152,37 +116,6 @@ void fill_filters(weight_t *array) {
 	XConv_Write_filters_29_V_Bytes(&hlsConv, 0, (char *) &(array[29 * slice_size]), bytes);
 	XConv_Write_filters_30_V_Bytes(&hlsConv, 0, (char *) &(array[30 * slice_size]), bytes);
 	XConv_Write_filters_31_V_Bytes(&hlsConv, 0, (char *) &(array[31 * slice_size]), bytes);
-
-//	if (XFilter_bram_op_IsReady(&hlsFilterOp)) {
-//		//print("filter bram is ready, and staring to be filled with data\n");
-//	} else {
-//		print("filter bram op is not ready. Exiting\n");
-//		exit(-1);
-//	}
-//
-//	for (int i = 0; i < FILTER_SIZE; i++) {
-//		// read byte from memory
-//		int temp = array[i];
-//		//xil_printf("read word 0x%x\n", temp);
-//
-//		u32 y = i % FILTER_DIM_SIZE;
-//		u32 x = ((i - y) / FILTER_DIM_SIZE) % FILTER_DIM_SIZE;
-//		u32 z = (i - y - x*FILTER_DIM_SIZE) / (FILTER_DIM_SIZE * FILTER_DIM_SIZE) % FILTER_SZ;
-//		u32 n = i / (FILTER_DIM_SIZE * FILTER_DIM_SIZE * FILTER_DIM_SIZE);
-//
-//		// write byte to hls input op
-//		XFilter_bram_op_Set_write_flag(&hlsFilterOp, 1);
-//		XFilter_bram_op_Set_value_V_i(&hlsFilterOp, temp);
-//		XFilter_bram_op_Set_x(&hlsFilterOp, x);
-//		XFilter_bram_op_Set_y(&hlsFilterOp, y);
-//		XFilter_bram_op_Set_z(&hlsFilterOp, z);
-//		XFilter_bram_op_Set_n(&hlsFilterOp, n);
-//		XFilter_bram_op_Start(&hlsFilterOp);
-//
-//		while (!XFilter_bram_op_IsReady(&hlsFilterOp))
-//			;
-//		//printf("write  #%d to filter bram with value 0x%x\n", i, temp);
-//	}
 
 	print("Finished writing to filter bram!\n");
 }
@@ -225,37 +158,6 @@ void read_output(activation_t *array) {
 	XConv_Read_out_30_V_Bytes(&hlsConv, 0, (char *) &(array[30 * slice_size]), bytes);
 	XConv_Read_out_31_V_Bytes(&hlsConv, 0, (char *) &(array[31 * slice_size]), bytes);
 
-//	if (XOutput_bram_op_IsReady(&hlsOutputOp)) {
-//		//print("output bram is ready, and staring to be read from\n");
-//	} else {
-//		print("output bram op is not ready. Exiting\n");
-//		exit(-1);
-//	}
-//
-//	for (int i = 0; i < OUTPUT_SIZE; i++) {
-//		u32 y = i % OUTPUT_SY;
-//		u32 x = ((i - y) / OUTPUT_SY) % OUTPUT_SX;
-//		u32 z = (i - y - x*OUTPUT_SY) / (OUTPUT_SX * OUTPUT_SY);
-//		assert(z < NUM_FILTERS);
-//
-//		// read word from hls output op
-//		XOutput_bram_op_Set_write_flag(&hlsOutputOp, 0);
-//		XOutput_bram_op_Set_x(&hlsOutputOp, x);
-//		XOutput_bram_op_Set_y(&hlsOutputOp, y);
-//		XOutput_bram_op_Set_z(&hlsOutputOp, z);
-//		XOutput_bram_op_Start(&hlsOutputOp);
-//
-//		while (!XOutput_bram_op_IsReady(&hlsOutputOp))
-//			;
-//
-//		// read word from BRAM
-//		int temp = XOutput_bram_op_Get_value_V_o(&hlsOutputOp);
-//		printf("#%d value: %d    0x%x\n", i, temp, temp);
-//
-//		// write it to memory
-//		array[i] = temp;
-//	}
-
 	print("Finished reading from output bram!\n");
 }
 
@@ -270,12 +172,8 @@ int main() {
 	weight_t filters[FILTER_SIZE];
 	activation_t input[INPUT_SIZE];
 	activation_t output[OUTPUT_SIZE];
-//	weight_t *bias    = (weight_t *) malloc(BIAS_SIZE   * sizeof(weight_t));
-//	weight_t *filters = (weight_t *) malloc(FILTER_SIZE * sizeof(weight_t));
-//	activation_t *input   = (activation_t *) malloc(INPUT_SIZE  * sizeof(activation_t));
-//	activation_t *output  = (activation_t *) malloc(OUTPUT_SIZE * sizeof(activation_t));
 
-	// zero fill everything for testing
+	// Initialize all values to 0
 	for (int i = 0; i < BIAS_SIZE; i++)
 		bias[i] = weight_t(0.125 * i);
 	for (int i = 0; i < FILTER_SIZE; i++)
@@ -287,6 +185,8 @@ int main() {
 
 	XTime tStart, tEnd;
 
+	// <-- SET BREAKPOINT HERE FOR LOADING DATA INTO DRAM
+	
 	// Write data to input, filters, and biases
 	fill_bias(bias);
 	fill_input(input);
@@ -303,29 +203,21 @@ int main() {
 	XConv_Set_stride(&hlsConv, STRIDE);
 
 	if (XConv_IsReady(&hlsConv)) {
-		//print("Conv is ready, and staring\n");
+		print("Conv is ready, and staring\n");
 	} else {
 		print("Conv is not ready. Exiting\n");
 		exit(-1);
 	}
 
+	// Run Convolution
 	XTime_GetTime(&tStart);
 	XConv_Start(&hlsConv);
 	while(!XConv_IsReady(&hlsConv))
 		;
 	XTime_GetTime(&tEnd);
 
-	// Read output
+	// Read output to DRAM
 	read_output(output);
-
-	for (int i = 0; i < BIAS_SIZE; i++)
-		printf("b %d: %s\n", i, bias[i].to_string(10).c_str());
-	for (int i = 0; i < FILTER_SIZE; i++)
-		printf("f %d: %s\n", i, filters[i].to_string(10).c_str());
-	for (int i = 0; i < INPUT_SIZE; i++)
-		printf("i %d: %s\n", i, input[i].to_string(10).c_str());
-	for (int i = 0; i < OUTPUT_SIZE; i++)
-		printf("o %d: %s\n", i, output[i].to_string(10).c_str());
 
 	printf("Conv took %lu clock cycles.\n", 2*(tEnd - tStart));
 	printf("Conv took %.6f ms.\n", 1.0 * (tEnd - tStart) / (COUNTS_PER_SECOND/1000));
