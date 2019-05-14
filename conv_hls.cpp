@@ -1,53 +1,32 @@
-#include "conv_hls.h"
+#include "bf_conv.h"
 #include <assert.h>
 using namespace std;
 
-/*
-int calc_filter_index(int filter_num, int x, int y, int z, int filter_size, int filter_sz) {
-#pragma HLS INLINE
-	assert(x >= 0 && x < filter_size);
-	assert(y >= 0 && y < filter_size);
-	assert(z >= 0 && z < filter_sz);
-
-	int i = filter_num * filter_size * filter_size * filter_sz; // get to the right filter
-	i += z * (filter_size * filter_size);
-	i += x * (filter_size);
-	i += y;
-
-	return i;
-}
-
-int calc_index(int x, int y, int z, int sx, int sy) {
-#pragma HLS INLINE
-	assert(x >= 0 && x < sx);
-	assert(y >= 0 && y < sy);
-
-	int i = z * sx * sy;
-	i += x * sy;
-	i += y;
-
-	return i;
-}
-*/
-
-void conv(weight_t filters[MAX_NUM_FILTERS][MAX_FILTER_DIM][MAX_FILTER_DIM][MAX_INPUT_SZ], int num_filters,
-		int filter_dim_size, activation_t in[MAX_INPUT_SX][MAX_INPUT_SY][MAX_INPUT_SZ], int in_sx, int in_sy,
-		int in_sz, activation_t out[MAX_OUTPUT_SX][MAX_OUTPUT_SY][MAX_NUM_FILTERS], int out_sx, int out_sy,
-		int stride, activation_t bias[MAX_BIAS_SIZE]) {
-
-#pragma HLS RESOURCE variable=filters core=RAM_1P_BRAM
-#pragma HLS RESOURCE variable=in core=RAM_1P_BRAM
-#pragma HLS RESOURCE variable=out core=RAM_1P_BRAM
-#pragma HLS RESOURCE variable=bias core=RAM_1P_BRAM
+void conv(
+		weight_t filters[MAX_NUM_FILTERS][MAX_FILTER_DIM][MAX_FILTER_DIM][MAX_INPUT_SZ],
+		exponent_t filter_exponent,
+		int num_filters,
+		int filter_dim_size,
+		activation_t in[MAX_INPUT_SX][MAX_INPUT_SY][MAX_INPUT_SZ],
+		exponent_t in_exponent,
+		int in_sx,
+		int in_sy,
+		int in_sz,
+		activation_t out[MAX_OUTPUT_SX][MAX_OUTPUT_SY][MAX_NUM_FILTERS],
+		exponent_t out_exponent,
+		int out_sx,
+		int out_sy,
+		int stride,
+		activation_t bias[MAX_BIAS_SIZE]) {
 
 #pragma HLS ARRAY_PARTITION variable=in complete dim=3
 #pragma HLS ARRAY_PARTITION variable=out complete dim=3
-#pragma HLS ARRAY_PARTITION variable=filters complete dim=4
-#pragma HLS INTERFACE bram port=filters
-#pragma HLS INTERFACE bram port=in
-#pragma HLS INTERFACE bram port=out
-#pragma HLS INTERFACE bram port=bias
+#pragma HLS ARRAY_PARTITION variable=filters complete dim=1
 
+#pragma HLS INTERFACE s_axilite port=filters bundle=ctrl
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=in
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=out
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=bias
 #pragma HLS INTERFACE s_axilite bundle=ctrl port=return
 #pragma HLS INTERFACE s_axilite bundle=ctrl port=num_filters
 #pragma HLS INTERFACE s_axilite bundle=ctrl port=filter_dim_size
@@ -57,6 +36,10 @@ void conv(weight_t filters[MAX_NUM_FILTERS][MAX_FILTER_DIM][MAX_FILTER_DIM][MAX_
 #pragma HLS INTERFACE s_axilite bundle=ctrl port=out_sx
 #pragma HLS INTERFACE s_axilite bundle=ctrl port=out_sy
 #pragma HLS INTERFACE s_axilite bundle=ctrl port=stride
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=filter_exponents
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=in_exponent
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=out_exponent
+#pragma HLS INTERFACE s_axilite bundle=ctrl port=bias_exponent
 
 	assert(num_filters <= MAX_NUM_FILTERS);
 	assert(filter_dim_size <= MAX_FILTER_DIM);
@@ -74,6 +57,9 @@ void conv(weight_t filters[MAX_NUM_FILTERS][MAX_FILTER_DIM][MAX_FILTER_DIM][MAX_
 			}
 		}
 	}
+
+	// Calculate out exponent
+	out_exponent = in_exponent + filter_exponent;
 
 	int needed_in_sx = out_sx * stride + filter_dim_size - 1;
 	int needed_in_sy = out_sy * stride + filter_dim_size - 1;
